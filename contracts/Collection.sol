@@ -1,15 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.11;
-pragma experimental ABIEncoderV2 ;
 
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 
 contract Authorizable is Ownable {
-
-    using SafeMath for uint256;
 
     mapping(address => bool) public authorized;
     address[] public adminList;
@@ -34,7 +30,7 @@ contract Authorizable is Ownable {
         require(_toRemove != address(0),"Cow Authorizable: _toRemove isn't vaild address");
         require(adminList[_index] == _toRemove,"Cow Authorizable: _index isn't valid index");
         authorized[_toRemove] = false;
-        adminList[_index] = adminList[(adminList.length).sub(1)]; 
+        adminList[_index] = adminList[(adminList.length) - 1]; 
         adminList.pop();
         emit RemoveAuthorized(_toRemove,_index);
     }
@@ -120,7 +116,6 @@ abstract contract ERC2981 is IERC2981, ERC165 {
 contract Collection is ERC721URIStorage, ERC2981, Authorizable {
 
     using Strings for uint256;
-    using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.UintSet;
 
     uint256 public totalSupply;
@@ -203,7 +198,7 @@ contract Collection is ERC721URIStorage, ERC2981, Authorizable {
         require(_to != address(0),"WorldCow: _to address not valid");
         counter++;
         uint256 tokenId = counter;
-        totalSupply = totalSupply.add(1);
+        totalSupply = totalSupply + 1;
         _holderTokens[_to].add(tokenId);
         _safeMint(_to,tokenId);
         _setTokenURI(tokenId,_tokenURI);
