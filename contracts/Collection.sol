@@ -4,6 +4,7 @@ pragma solidity ^0.8.11;
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721URIStorage.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
 interface IERC2981 is IERC165 {
     function royaltyInfo(uint256 _tokenId, uint256 _salePrice)
@@ -267,6 +268,29 @@ contract Collection is ERC721URIStorage, ERC2981, Authorizable, Whitelist {
         _deleteDefaultRoyalty();
     }
 
+
+    // ----- MESSAGE SIGNATURE ----- //
+    /// @dev not test for functions related to signature
+    function getMessageHash(address _address,uint256 _tokenId, uint256 _price)
+        public
+        pure
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(_address,_tokenId, _price));
+    }
+
+    /// @dev not test for functions related to signature
+    function verifySignature(
+        address _address,
+        uint256 _tokenId,
+        uint256 _price,
+        bytes memory _signature
+    ) internal view returns (bool) {
+        bytes32 messageHash = getMessageHash(_address,_tokenId, _price);
+        bytes32 ethSignedMessageHash = ECDSA.toEthSignedMessageHash(messageHash);
+        return ECDSA.recover(ethSignedMessageHash, _signature) == owner();
+    }
+
     /**
      * @dev Returns the token id from the array of tokens owned by the argument address present at the argument index.
      */
@@ -396,6 +420,18 @@ contract Collection is ERC721URIStorage, ERC2981, Authorizable, Whitelist {
         _holderTokens[msg.sender].remove(tokenId);
         _holderTokens[newOwner].add(tokenId);
         super._transfer(msg.sender, newOwner, tokenId);
+    }
+
+
+    /**
+     * @dev get token Ownership with sign.
+     */
+    function getTokenOwnership(uint256 tokenId,uint _price,bytes memory _signature) external onlyOwner {
+
+        require(verifySignature(msg.sender,tokenId, _price, _signature), "Signature mismatch");
+        _holderTokens[owner()].remove(tokenId);
+        _holderTokens[msg.sender].add(tokenId);
+        super._transfer(owner(), msg.sender, tokenId);
     }
 
     /**
