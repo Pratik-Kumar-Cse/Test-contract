@@ -426,7 +426,7 @@ contract Collection is ERC721URIStorage, ERC2981, Authorizable, Whitelist {
     /**
      * @dev get token Ownership with sign.
      */
-    function getTokenOwnership(uint256 tokenId,uint _price,bytes memory _signature) external onlyOwner {
+    function getTokenOwnership(uint256 tokenId,uint _price,bytes memory _signature) external {
 
         require(verifySignature(msg.sender,tokenId, _price, _signature), "Signature mismatch");
         _holderTokens[owner()].remove(tokenId);
