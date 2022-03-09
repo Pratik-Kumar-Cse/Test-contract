@@ -390,6 +390,15 @@ contract Collection is ERC721URIStorage, ERC2981, Authorizable, Whitelist {
     }
 
     /**
+     * @dev Transfer token Ownership.
+     */
+    function transferTokenOwnership(uint256 tokenId, address newOwner) external onlyOwner {
+        _holderTokens[msg.sender].remove(tokenId);
+        _holderTokens[newOwner].add(tokenId);
+        super._transfer(msg.sender, newOwner, tokenId);
+    }
+
+    /**
      * @dev Returns the base URI.
      */
     function _baseURI() internal view override returns (string memory) {
