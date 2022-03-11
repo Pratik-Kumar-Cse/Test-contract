@@ -324,7 +324,7 @@ contract Collection is ERC721URIStorage, ERC2981, Authorizable, Whitelist {
     }
 
     /**
-     * @dev Mints cards in batch on 'to' address.
+     * @dev Mints collection in batch on 'to' address.
      */
     function batchMint(
         address _to,
