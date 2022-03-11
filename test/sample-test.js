@@ -6,7 +6,8 @@ describe("NFT-Test", async () => {
     address2,
     Factoryinstance,
     CollectableAddress,
-    collectableinstance;
+    collectableinstance,
+    WethInstance;
   beforeEach(async () => {
     const GetFactory = await ethers.getContractFactory("Factory");
     [owner, address1, address2] = await ethers.getSigners();
@@ -23,6 +24,9 @@ describe("NFT-Test", async () => {
       "Collection",
       CollectableAddress
     );
+    const GetWeth = await ethers.getContractFactory("WPULSE");
+    WethInstance = await GetWeth.deploy();
+    await WethInstance.deployed();
   });
   it("Is the collectable is deployed and it is there", async () => {
     const getCollectableSize = await Factoryinstance.getAllCollectionAddress();
@@ -213,6 +217,11 @@ describe("NFT-Test", async () => {
       );
       console.log("royalityi1---------->", royalityi1);
       expect(royalityi1[1]).to.be.equal(0);
+    });
+  });
+  describe("Running the MarketPlace", async () => {
+    beforeEach(async () => {
+      //deploy the marketplace contract
     });
   });
 });

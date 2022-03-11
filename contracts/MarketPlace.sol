@@ -313,10 +313,9 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         }
         if(checkRoyalties(saleOrder[orderId].tokenContract)){
             (address reciver,uint royaltyAmount) = IERC2981(saleOrder[orderId].tokenContract).royaltyInfo(saleOrder[orderId].tokenId,tokenOwnerProfit);
-            royaltiyFee = tokenOwnerProfit.mul(saleOrder[orderId].curatorFeePercentage).div(100);//this is not right
             _handleOutgoingBid(reciver, royaltyAmount, saleOrder[orderId].currency);//give the royality to the original owner
         }
-        tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltiyFee));//the amount which we sold for in that some will go to the platform and some will go to the royality to the first user
+        tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltyAmount));//the amount which we sold for in that some will go to the platform and some will go to the royality to the first user
         _handleOutgoingBid(saleOrder[orderId].tokenOwner, tokenOwnerProfit, saleOrder[orderId].currency);//send the owner this much amount 
         _handleOutgoingBid(msg.sender, msg.value - (tokenOwnerProfit + curatorFee), saleOrder[orderId].currency);//send the remianing
         delete saleOrder[orderId];
@@ -439,10 +438,9 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         }
         if(checkRoyalties(dutchAuctions[auctionId].tokenContract)){
             (address reciver,uint royaltyAmount) = IERC2981(dutchAuctions[auctionId].tokenContract).royaltyInfo(dutchAuctions[auctionId].tokenId,tokenOwnerProfit);
-            royaltiyFee = tokenOwnerProfit.mul(dutchAuctions[auctionId].curatorFeePercentage).div(100);
             _handleOutgoingBid(reciver, royaltyAmount, dutchAuctions[auctionId].auctionCurrency);
         }
-        tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltiyFee));
+        tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltyAmount));
         _handleOutgoingBid(auctions[auctionId].tokenOwner, tokenOwnerProfit, auctions[auctionId].auctionCurrency);
         delete dutchAuctions[auctionId];
     }
@@ -569,10 +567,9 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         }
         if(checkRoyalties(auctions[auctionId].tokenContract)){
             (address reciver,uint royaltyAmount) = IERC2981(auctions[auctionId].tokenContract).royaltyInfo(auctions[auctionId].tokenId,tokenOwnerProfit);
-            royaltiyFee = tokenOwnerProfit.mul(auctions[auctionId].curatorFeePercentage).div(100);//why we are using this 
             _handleOutgoingBid(reciver, royaltyAmount, auctions[auctionId].auctionCurrency);
         }
-        tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltiyFee));
+        tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltyAmount));
         _handleOutgoingBid(auctions[auctionId].tokenOwner, tokenOwnerProfit, auctions[auctionId].auctionCurrency);
 
         emit AuctionEnded(
