@@ -26,11 +26,11 @@ interface IAuctionHouse {
         // The minimum price of the first bid
         uint256 reservePrice;
         // The sale percentage to send to the curator
-        uint8 curatorFeePercentage;
+        uint8 curatorFeePercentage;//owner of the nft percentage
         // The address that should receive the funds once the NFT is sold.
-        address tokenOwner;
+        address tokenOwner;//Owner of the token address
         // The address of the current highest bid
-        address payable bidder;
+        address payable bidder;//address of current highest bidder
         // The address of the ERC-20 currency to run the auction with.
         // If set to 0x0, the auction will be run in ETH
         address auctionCurrency;
@@ -167,8 +167,8 @@ interface IERC2981 is IERC721 {
         uint256 _tokenId,
         uint256 _salePrice
     ) external view returns (
-        address receiver,
-        uint256 royaltyAmount
+        address receiver,//receiver address of the royality info 
+        uint256 royaltyAmount//amount he need to pay
     );
 }
 
@@ -188,10 +188,10 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
     using Counters for Counters.Counter;
 
     // The minimum amount of time left in an auction after a new bid is created
-    uint256 public timeBuffer;
+    uint256 public timeBuffer;//after every bid we will wait this much time
 
     // The minimum percentage difference between the last bid amount and the current bid.
-    uint8 public minBidIncrementPercentage;
+    uint8 public minBidIncrementPercentage;//every time the users bid ,how much they need to pay the extra from last bidder to consider as bidder
 
     // The address of the zora protocol to use via this contract
     address public collection;
@@ -200,13 +200,13 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
     address public wethAddress;
 
     // A mapping of all of the auctions currently running.
-    mapping(uint256 => IAuctionHouse.Auction) public auctions;
+    mapping(uint256 => IAuctionHouse.Auction) public auctions;//order mapping
 
     // A mapping of all of the auctions currently running.
     mapping(uint256 => IAuctionHouse.DutchAuction) public dutchAuctions;
 
     // A mapping of all of the order currently running.
-    mapping(uint256 => IAuctionHouse.Order) public saleOrder;
+    mapping(uint256 => IAuctionHouse.Order) public saleOrder;//order mapping 
 
     bytes4 constant interfaceId = 0x80ac58cd; // 721 interface id
     bytes4 private constant _INTERFACE_ID_ERC2981 = 0x2a55205a;
@@ -223,7 +223,7 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
     modifier auctionExists(uint256 auctionId) {
         require(_exists(auctionId,true), "Auction doesn't exist");
         _;
-    }
+    }//function for auction exists?
 
     /**
      * @notice Require that the specified order exists
@@ -246,11 +246,11 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
      */
     constructor(address _collection, address _weth) {
         require(
-            IERC165(_collection).supportsInterface(interfaceId),
+            IERC165(_collection).supportsInterface(interfaceId),//This collection contract supports this interfaid
             "Doesn't support NFT interface"
         );
-        collection = _collection;
-        wethAddress = _weth;
+        collection = _collection;//address of the collection contract
+        wethAddress = _weth;//weth address
         timeBuffer = 15 * 60; // extend 15 minutes after every bid made in last 15 minutes
         minBidIncrementPercentage = 5; // 5%
     }
@@ -266,12 +266,12 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         address currency
     ) public nonReentrant returns (uint256) {
         require(
-            IERC165(tokenContract).supportsInterface(interfaceId),
+            IERC165(tokenContract).supportsInterface(interfaceId),//will this token contract supports the interface
             "tokenContract does not support ERC721 interface"
         );
-        address tokenOwner = IERC721(tokenContract).ownerOf(tokenId);
-        require(msg.sender == IERC721(tokenContract).getApproved(tokenId) || msg.sender == tokenOwner, "Caller must be approved or owner for token id");
-        uint256 oderId = _saleOrderTracker.current();
+        address tokenOwner = IERC721(tokenContract).ownerOf(tokenId);//get the owner of the tokenId
+        require(msg.sender == IERC721(tokenContract).getApproved(tokenId) || msg.sender == tokenOwner, "Caller must be approved or owner for token id");//caller needs to be approved or the owner
+        uint256 oderId = _saleOrderTracker.current();//increase the selll order
         saleOrder[oderId] = Order({
             tokenId: tokenId,
             tokenContract: tokenContract,
@@ -280,8 +280,8 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
             tokenOwner: tokenOwner,
             currency: currency
         });
-        IERC721(tokenContract).transferFrom(tokenOwner, address(this), tokenId);
-        _auctionIdTracker.increment();
+        IERC721(tokenContract).transferFrom(tokenOwner, address(this), tokenId);//transfer the token from the owner to this address
+        _auctionIdTracker.increment();//increament the auction
         return oderId;
     }
 
@@ -293,7 +293,7 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         require(
             auctions[orderId].tokenOwner == msg.sender,
             "Can only be called by auction creator or curator"
-        );
+        );//caller needs to be owner
         _cancelOrder(orderId);
     }
 
@@ -305,20 +305,20 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         uint256 curatorFee = 0;
         uint256 royaltiyFee = 0;
         uint256 tokenOwnerProfit = saleOrder[orderId].reservePrice;
-        _handleIncomingBid(tokenOwnerProfit, saleOrder[orderId].currency);
-        IERC721(saleOrder[orderId].tokenContract).safeTransferFrom(address(this), msg.sender, saleOrder[orderId].tokenId);
+        _handleIncomingBid(tokenOwnerProfit, saleOrder[orderId].currency);//transfer the amount from user to this address
+        IERC721(saleOrder[orderId].tokenContract).safeTransferFrom(address(this), msg.sender, saleOrder[orderId].tokenId);//give the token to the user
         if(curator != address(0)) {
-            curatorFee = tokenOwnerProfit.mul(saleOrder[orderId].curatorFeePercentage).div(100);
-            _handleOutgoingBid(curator, curatorFee, saleOrder[orderId].currency);
+            curatorFee = tokenOwnerProfit.mul(saleOrder[orderId].curatorFeePercentage).div(100);//give the curator percent from the user paid
+            _handleOutgoingBid(curator, curatorFee, saleOrder[orderId].currency);//transfer the amount to the curator
         }
         if(checkRoyalties(saleOrder[orderId].tokenContract)){
             (address reciver,uint royaltyAmount) = IERC2981(saleOrder[orderId].tokenContract).royaltyInfo(saleOrder[orderId].tokenId,tokenOwnerProfit);
-            royaltiyFee = tokenOwnerProfit.mul(saleOrder[orderId].curatorFeePercentage).div(100);
-            _handleOutgoingBid(reciver, royaltyAmount, saleOrder[orderId].currency);
+            royaltiyFee = tokenOwnerProfit.mul(saleOrder[orderId].curatorFeePercentage).div(100);//this is not right
+            _handleOutgoingBid(reciver, royaltyAmount, saleOrder[orderId].currency);//give the royality to the original owner
         }
-        tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltiyFee));
-        _handleOutgoingBid(saleOrder[orderId].tokenOwner, tokenOwnerProfit, saleOrder[orderId].currency);
-        _handleOutgoingBid(msg.sender, msg.value - (tokenOwnerProfit + curatorFee), saleOrder[orderId].currency);
+        tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltiyFee));//the amount which we sold for in that some will go to the platform and some will go to the royality to the first user
+        _handleOutgoingBid(saleOrder[orderId].tokenOwner, tokenOwnerProfit, saleOrder[orderId].currency);//send the owner this much amount 
+        _handleOutgoingBid(msg.sender, msg.value - (tokenOwnerProfit + curatorFee), saleOrder[orderId].currency);//send the remianing
         delete saleOrder[orderId];
     }
 
@@ -349,13 +349,13 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
             firstBidTime: 0,
             reservePrice: reservePrice,
             curatorFeePercentage: 5,
-            tokenOwner: tokenOwner,
+            tokenOwner: tokenOwner,//token owner
             bidder: payable(address(0)),
             auctionCurrency: auctionCurrency
         });
 
-        IERC721(tokenContract).transferFrom(tokenOwner, address(this), tokenId);
-        _auctionIdTracker.increment();
+        IERC721(tokenContract).transferFrom(tokenOwner, address(this), tokenId);//get the tokenid from the user to this contract
+        _auctionIdTracker.increment();//increment the  auction id
 
         emit AuctionCreated(auctionId, tokenId, tokenContract, duration, reservePrice, tokenOwner, curator, 5, auctionCurrency);
         return auctionId;
@@ -363,8 +363,8 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
 
     function setAuctionReservePrice(uint256 auctionId, uint256 reservePrice) external override auctionExists(auctionId) {
         require(msg.sender == auctions[auctionId].tokenOwner, "Must be auction curator or token owner");
-        require(auctions[auctionId].firstBidTime == 0, "Auction has already started");
-        auctions[auctionId].reservePrice = reservePrice;
+        require(auctions[auctionId].firstBidTime == 0, "Auction has already started");//if anyone bid the bid time will change
+        auctions[auctionId].reservePrice = reservePrice;//change the reserve price
         emit AuctionReservePriceUpdated(auctionId, auctions[auctionId].tokenId, auctions[auctionId].tokenContract, reservePrice);
     }
 
@@ -460,51 +460,54 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
     auctionExists(auctionId)
     nonReentrant
     {
-        address payable lastBidder = auctions[auctionId].bidder;
+        address payable lastBidder = auctions[auctionId].bidder;//get the last bidder
         require(
             auctions[auctionId].firstBidTime == 0 ||
             block.timestamp <
             auctions[auctionId].firstBidTime.add(auctions[auctionId].duration),
-            "Auction expired"
+            "Auction expired"//the next bid needs to be happended in less than 15 min
         );
         require(
             amount >= auctions[auctionId].reservePrice,
-                "Must send at least reservePrice"
+                "Must send at least reservePrice"//the amount needs to be greater than the reserve price
         );
         require(
             amount >= auctions[auctionId].amount.add(
                 auctions[auctionId].amount.mul(minBidIncrementPercentage).div(100)
             ),
             "Must send more than last bid by minBidIncrementPercentage amount"
-        );
+        );//the amount but be greater than 5% from the last bid
 
         // If this is the first valid bid, we should set the starting time now.
         // If it's not, then we should refund the last bidder
         if(auctions[auctionId].firstBidTime == 0) {
             auctions[auctionId].firstBidTime = block.timestamp;
         } else if(lastBidder != address(0)) {
-            _handleOutgoingBid(lastBidder, auctions[auctionId].amount, auctions[auctionId].auctionCurrency);
+            _handleOutgoingBid(lastBidder, auctions[auctionId].amount, auctions[auctionId].auctionCurrency);//send the amount to the last bidder because we got the highest bid then him
         }
 
-        _handleIncomingBid(amount, auctions[auctionId].auctionCurrency);
+        _handleIncomingBid(amount, auctions[auctionId].auctionCurrency);//get the amount into the contract
 
-        auctions[auctionId].amount = amount;
-        auctions[auctionId].bidder = payable(msg.sender);
+        auctions[auctionId].amount = amount;//this is the amount i have bidded
+        auctions[auctionId].bidder = payable(msg.sender);//store the msg
 
         bool extended = false;
         // at this point we know that the timestamp is less than start + duration (since the auction would be over, otherwise)
+        // (10:30+15min)--->10:45 min
+        //  
         // we want to know by how much the timestamp is less than start + duration
         // if the difference is less than the timeBuffer, increase the duration by the timeBuffer
+        //
         if (
             auctions[auctionId].firstBidTime.add(auctions[auctionId].duration).sub(
                 block.timestamp
-            ) < timeBuffer
+            ) < timeBuffer//if there is no time for the next bid,means if someone had created the bid last less than 15 secs from the duration and there is only one bid happened inthis auction
         ) {
             // Playing code golf for gas optimization:
-            // uint256 expectedEnd = auctions[auctionId].firstBidTime.add(auctions[auctionId].duration);
+            // uint256 expectedEnd = auctions[auctionId].firstBidTime.add(auctions[auctionId].duration);//it needs to be ended 
             // uint256 timeRemaining = expectedEnd.sub(block.timestamp);
             // uint256 timeToAdd = timeBuffer.sub(timeRemaining);
-            // uint256 newDuration = auctions[auctionId].duration.add(timeToAdd);
+            // uint256 newDuration = auctions[auctionId].duration.add(timeToAdd);//extend the time by the 15 min
             uint256 oldDuration = auctions[auctionId].duration;
             auctions[auctionId].duration =
                 oldDuration.add(timeBuffer.sub(auctions[auctionId].firstBidTime.add(oldDuration).sub(block.timestamp)));
@@ -555,8 +558,8 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         
             // Otherwise, transfer the token to the winner and pay out the participants below
         try IERC721(auctions[auctionId].tokenContract).safeTransferFrom(address(this), auctions[auctionId].bidder, auctions[auctionId].tokenId) {} catch {
-            _handleOutgoingBid(auctions[auctionId].bidder, auctions[auctionId].amount, auctions[auctionId].auctionCurrency);
-            _cancelAuction(auctionId);
+            _handleOutgoingBid(auctions[auctionId].bidder, auctions[auctionId].amount, auctions[auctionId].auctionCurrency);//we will send his money back to the bidder
+            _cancelAuction(auctionId);//and end the auction
             return;
         }
         
@@ -566,7 +569,7 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         }
         if(checkRoyalties(auctions[auctionId].tokenContract)){
             (address reciver,uint royaltyAmount) = IERC2981(auctions[auctionId].tokenContract).royaltyInfo(auctions[auctionId].tokenId,tokenOwnerProfit);
-            royaltiyFee = tokenOwnerProfit.mul(auctions[auctionId].curatorFeePercentage).div(100);
+            royaltiyFee = tokenOwnerProfit.mul(auctions[auctionId].curatorFeePercentage).div(100);//why we are using this 
             _handleOutgoingBid(reciver, royaltyAmount, auctions[auctionId].auctionCurrency);
         }
         tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltiyFee));
@@ -615,14 +618,14 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         // If this is an ETH bid, ensure they sent enough and convert it to WETH under the hood
         if(currency == address(0)) {
             require(msg.value == amount, "Sent ETH Value does not match specified bid amount");
-            IWETH(wethAddress).deposit{value: amount}();
+            IWETH(wethAddress).deposit{value: amount}();//we will store weth tokens
         } else {
             // We must check the balance that was actually transferred to the auction,
             // as some tokens impose a transfer fee and would not actually transfer the
             // full amount to the market, resulting in potentally locked funds
             IERC20 token = IERC20(currency);
             uint256 beforeBalance = token.balanceOf(address(this));
-            token.safeTransferFrom(msg.sender, address(this), amount);
+            token.safeTransferFrom(msg.sender, address(this), amount);//transfer from the user to this address
             uint256 afterBalance = token.balanceOf(address(this));
             require(beforeBalance.add(amount) == afterBalance, "Token transfer call did not transfer expected amount");
         }
