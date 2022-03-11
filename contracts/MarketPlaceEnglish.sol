@@ -36,28 +36,6 @@ interface IAuctionHouse {
         address auctionCurrency;
     }
 
-    struct DutchAuction{
-        // ID for the ERC721 token
-        uint256 tokenId;
-        // Address for the ERC721 contract
-        address tokenContract;
-
-        uint256 discountRate;
-
-        uint256 startAt;
-        // The length of time to run the auction for, after the first bid was made
-        uint256 duration;
-        // The minimum price of the first bid
-        uint256 reservePrice;
-        // The sale percentage to send to the curator
-        uint8 curatorFeePercentage;
-        // The address that should receive the funds once the NFT is sold.
-        address tokenOwner;
-        // The address of the ERC-20 currency to run the auction with.
-        // If set to 0x0, the auction will be run in ETH
-        address auctionCurrency;
-
-    }
 
     struct Order{
         // ID for the ERC721 token
@@ -202,9 +180,6 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
     // A mapping of all of the auctions currently running.
     mapping(uint256 => IAuctionHouse.Auction) public auctions;//order mapping
 
-    // A mapping of all of the auctions currently running.
-    mapping(uint256 => IAuctionHouse.DutchAuction) public dutchAuctions;
-
     // A mapping of all of the order currently running.
     mapping(uint256 => IAuctionHouse.Order) public saleOrder;//order mapping 
 
@@ -212,7 +187,6 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
     bytes4 private constant _INTERFACE_ID_ERC2981 = 0x2a55205a;
 
     Counters.Counter private _auctionIdTracker;
-    Counters.Counter private _dutchAuctionIdTracker;
     Counters.Counter private _saleOrderTracker;
 
 
@@ -230,14 +204,6 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
      */
     modifier orderExists(uint256 orderId) {
         require(_exists(orderId,false), "Auction doesn't exist");
-        _;
-    }
-
-    /**
-     * @notice Require that the specified order exists
-     */
-    modifier dutchAuctionExists(uint256 auctionId) {
-        require(dutchAuctions[auctionId].tokenOwner != address(0), "Auction doesn't exist");
         _;
     }
 
@@ -367,84 +333,6 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         emit AuctionReservePriceUpdated(auctionId, auctions[auctionId].tokenId, auctions[auctionId].tokenContract, reservePrice);
     }
 
-
-    /**
-     * @notice Create an auction.
-     * @dev Store the auction details in the auctions mapping and emit an AuctionCreated event.
-     * If there is no curator, or if the curator is the auction creator, automatically approve the auction.
-     */
-    function createDutchAuction(
-        uint256 tokenId,
-        address tokenContract,
-        uint256 duration,
-        uint256 reservePrice,
-        uint256 discountRate,
-        address auctionCurrency
-    ) public nonReentrant returns (uint256) {
-        require(
-            IERC165(tokenContract).supportsInterface(interfaceId),
-            "tokenContract does not support ERC721 interface"
-        );
-        require(reservePrice >= discountRate * duration,"reservePrice less than discout");
-        address tokenOwner = IERC721(tokenContract).ownerOf(tokenId);
-        require(msg.sender == IERC721(tokenContract).getApproved(tokenId) || msg.sender == tokenOwner, "Caller must be approved or owner for token id");
-        uint256 auctionId = _dutchAuctionIdTracker.current();
-        dutchAuctions[auctionId] = DutchAuction({
-            tokenId: tokenId,
-            tokenContract: tokenContract,
-            startAt: block.timestamp,
-            duration: duration,
-            reservePrice: reservePrice,
-            discountRate: discountRate,
-            curatorFeePercentage: 5,
-            tokenOwner: tokenOwner,
-            auctionCurrency: auctionCurrency
-        });
-        IERC721(tokenContract).transferFrom(tokenOwner, address(this), tokenId);
-        _dutchAuctionIdTracker.increment();
-        emit AuctionCreated(auctionId, tokenId, tokenContract, duration, reservePrice, tokenOwner, curator, 5, auctionCurrency);
-        return auctionId;
-    }
-
-    /**
-     * @notice Cancel an Dutch auction.
-     * @dev Transfers the NFT back to the auction creator and emits an AuctionCanceled event
-     */
-    function cancelDutchAuction(uint256 auctionId) external nonReentrant dutchAuctionExists(auctionId) {
-        require(
-            dutchAuctions[auctionId].tokenOwner == msg.sender,
-            "Can only be called by auction creator or curator"
-        );
-        _cancelDutchAuction(auctionId);
-    }
-
-    /**
-     * @notice  auction, finalizing the bid on Zora if applicable and paying out the respective parties
-     */
-    function buyDutchAuction(uint256 auctionId) payable external dutchAuctionExists(auctionId) nonReentrant {
-        require(
-            block.timestamp <
-            dutchAuctions[auctionId].startAt.add(auctions[auctionId].duration),
-            "Auction hasn't completed"
-        );
-        uint curatorFee = 0;
-        uint royaltiyFee = 0;
-        uint256 tokenOwnerProfit = getPrice(auctionId);
-        _handleIncomingBid(tokenOwnerProfit, dutchAuctions[auctionId].auctionCurrency);
-        IERC721(dutchAuctions[auctionId].tokenContract).safeTransferFrom(address(this), msg.sender, dutchAuctions[auctionId].tokenId);
-        if(curator != address(0)) {
-            curatorFee = tokenOwnerProfit.mul(dutchAuctions[auctionId].curatorFeePercentage).div(100);
-            _handleOutgoingBid(curator, curatorFee, auctions[auctionId].auctionCurrency);
-        }
-        if(checkRoyalties(dutchAuctions[auctionId].tokenContract)){
-            (address reciver,uint royaltyAmount) = IERC2981(dutchAuctions[auctionId].tokenContract).royaltyInfo(dutchAuctions[auctionId].tokenId,tokenOwnerProfit);
-            _handleOutgoingBid(reciver, royaltyAmount, dutchAuctions[auctionId].auctionCurrency);
-        }
-        tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltyAmount));
-        _handleOutgoingBid(auctions[auctionId].tokenOwner, tokenOwnerProfit, auctions[auctionId].auctionCurrency);
-        delete dutchAuctions[auctionId];
-    }
-    
     /**
      * @notice Create a bid on a token, with a given amount.
      * @dev If provided a valid bid, transfers the provided amount to this contract.
@@ -566,7 +454,6 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
             _handleOutgoingBid(curator, curatorFee, auctions[auctionId].auctionCurrency);
         }
         if(checkRoyalties(auctions[auctionId].tokenContract)){
-            (address reciver,uint royaltyAmount) = IERC2981(auctions[auctionId].tokenContract).royaltyInfo(auctions[auctionId].tokenId,tokenOwnerProfit);
             _handleOutgoingBid(reciver, royaltyAmount, auctions[auctionId].auctionCurrency);
         }
         tokenOwnerProfit = tokenOwnerProfit.sub(curatorFee.add(royaltyAmount));
@@ -656,12 +543,6 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
         delete auctions[auctionId];
     }
 
-    function _cancelDutchAuction(uint256 auctionId) internal {
-        address tokenOwner = auctions[auctionId].tokenOwner;
-        IERC721(dutchAuctions[auctionId].tokenContract).safeTransferFrom(address(this), tokenOwner, dutchAuctions[auctionId].tokenId);
-        delete dutchAuctions[auctionId];
-    }
-
     function _cancelOrder(uint256 orderId) internal {
         address tokenOwner = saleOrder[orderId].tokenOwner;
         IERC721(saleOrder[orderId].tokenContract).safeTransferFrom(address(this), tokenOwner, saleOrder[orderId].tokenId);
@@ -673,17 +554,6 @@ contract MarketPlace is IAuctionHouse, ReentrancyGuard {
             return auctions[id].tokenOwner != address(0);
         }
         return saleOrder[id].tokenOwner != address(0);
-    }
-
-    /**
-     * @dev get current Dutch auction price 
-     */
-
-    function getPrice(uint auctionId) public dutchAuctionExists(auctionId) view returns(uint){
-        uint endTime = dutchAuctions[auctionId].startAt + dutchAuctions[auctionId].duration;
-        uint time = endTime > block.timestamp ? block.timestamp : endTime;
-        uint discount = dutchAuctions[auctionId].discountRate * time;
-        return dutchAuctions[auctionId].reservePrice - discount;
     }
 
     // TODO: consider reverting if the message sender is not WETH
